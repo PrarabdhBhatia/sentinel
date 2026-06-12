@@ -21,13 +21,15 @@ POST /interrogate                 — question + MarketResult → widget spec th
 from __future__ import annotations
 
 import asyncio
+import pathlib
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 import orjson
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sse_starlette import EventSourceResponse
 
@@ -388,3 +390,14 @@ async def interrogate_market(req: InterrogateRequest) -> JSONResponse:
 
     result = await run_interrogate(req.question, market)
     return JSONResponse(result)
+
+
+# ── Static frontend (served from ../frontend/dist when built) ─────────────────
+_DIST = pathlib.Path(__file__).parent.parent.parent / "frontend" / "dist"
+
+if _DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str) -> FileResponse:
+        return FileResponse(str(_DIST / "index.html"))

@@ -5,7 +5,11 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install -r requirements.txt &&
+      cd ../frontend &&
+      npm install &&
+      npm run build
     startCommand: uvicorn app.server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     envVars:
@@ -47,14 +51,3 @@ services:
         value: "false"
       - key: TEST_VENDOR_URL
         sync: false
-
-  - type: web
-    name: sentinel-ui
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    pullRequestPreviewsEnabled: false
-    envVars:
-      - key: VITE_API_URL
-        value: https://sentinel-api-67yh.onrender.com
