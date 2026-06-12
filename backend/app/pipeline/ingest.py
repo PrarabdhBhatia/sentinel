@@ -24,6 +24,21 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+# Enterprise SaaS sites that render entirely in JS — skip httpx, go straight
+# to Jina Reader which handles these reliably.
+_JINA_FIRST_DOMAINS = {
+    "intercom.com",
+    "zendesk.com",
+    "freshworks.com",
+    "salesforce.com",
+    "hubspot.com",
+    "servicenow.com",
+    "workday.com",
+    "atlassian.com",
+    "notion.so",
+    "linear.app",
+}
+
 
 async def ingest(url: str, *, bus: TelemetryBus, vendor: str | None = None) -> str:
     """Fetch `url`, return clean markdown text. On any failure return an empty
@@ -35,22 +50,37 @@ async def ingest(url: str, *, bus: TelemetryBus, vendor: str | None = None) -> s
             return cached
 
         try:
+            from urllib.parse import urlparse
+            domain = urlparse(url).netloc.lstrip("www.")
+            jina_first = any(domain.endswith(d) for d in _JINA_FIRST_DOMAINS)
+
             async with httpx.AsyncClient(
                 timeout=settings.SCRAPE_TIMEOUT_S,
                 follow_redirects=True,
                 headers=_HEADERS,
             ) as http:
-                resp = await http.get(url)
-                if resp.status_code >= 400:
-                    return await _jina_fallback(http, url)
-                text = trafilatura.extract(
-                    resp.text,
-                    include_links=False,
-                    include_images=False,
-                    favor_recall=True,
-                ) or ""
-                if len(text.strip()) < 200:
-                    text = await _jina_fallback(http, url) or text
+                if jina_first:
+                    text = await _jina_fallback(http, url)
+                    if len(text.strip()) < 200:
+                        resp = await http.get(url)
+                        text = trafilatura.extract(
+                            resp.text,
+                            include_links=False,
+                            include_images=False,
+                            favor_recall=True,
+                        ) or text
+                else:
+                    resp = await http.get(url)
+                    if resp.status_code >= 400:
+                        return await _jina_fallback(http, url)
+                    text = trafilatura.extract(
+                        resp.text,
+                        include_links=False,
+                        include_images=False,
+                        favor_recall=True,
+                    ) or ""
+                    if len(text.strip()) < 200:
+                        text = await _jina_fallback(http, url) or text
                 result = text[:15_000]
                 if result.strip():
                     cache.set("ingest", url, result)

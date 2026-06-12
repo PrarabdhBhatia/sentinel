@@ -1,0 +1,15 @@
+{
+  "name": "sentinel-agents",
+  "version": "1.0.0",
+  "description": "Sentinel Guild agents — Claim Verifier + Buyer Agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy:verifier": "guild agent save --message 'deploy claim verifier' --wait --publish",
+    "deploy:buyer": "guild agent save --message 'deploy buyer agent' --wait --publish"
+  },
+  "dependencies": {
+    "@guildai/agents-sdk": "latest",
+    "zod": "^3.22.0"
+  }
+}

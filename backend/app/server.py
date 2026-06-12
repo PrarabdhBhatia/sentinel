@@ -33,6 +33,7 @@ from sse_starlette import EventSourceResponse
 
 from app import sentinel, test_vendor
 from app.telemetry import TelemetryBus
+from app.schemas import TelemetryEvent
 
 
 @asynccontextmanager
@@ -146,6 +147,9 @@ async def results(run_id: str) -> Any:
 
     if task and task.done() and not task.exception():
         final = task.result()
+        # Keep sentinel state in sync so /interrogate sees live data
+        if final and final.vendors:
+            sentinel.state().market = final
         return orjson.loads(orjson.dumps(final.model_dump(mode="json")))
 
     if partial is not None:
@@ -199,6 +203,114 @@ async def test_vendor_nimbus_post(payload: NimbusUpdate) -> JSONResponse:
 @app.get("/sentinel/status")
 async def sentinel_status() -> dict:
     return sentinel.status_snapshot()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# D05 — x402 verdict endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/market/{category}/verdicts")
+async def market_verdicts(
+    category: str,
+    intent: Optional[str] = None,
+    request: Request = None,
+) -> Any:
+    """Paywalled verdict endpoint. Returns HTTP 402 + quote until payment is
+    proved via X-Payment header. Passes through in demo mode (no wallet set)."""
+    from app.x402 import build_quote, parse_payment_header, verify_payment, demo_hash_for
+    from app.config import settings as cfg
+
+    payment_header = request.headers.get("X-Payment") if request else None
+    txn_hash = parse_payment_header(payment_header)
+
+    # If wallet is configured, enforce payment
+    if cfg.X402_PAY_TO:
+        if not txn_hash:
+            quote = build_quote(category)
+            return JSONResponse(status_code=402, content=quote)
+        ok, reason = await verify_payment(txn_hash, category)
+        if not ok:
+            return JSONResponse(
+                status_code=402,
+                content={"error": reason, **build_quote(category)},
+            )
+    else:
+        # Demo mode — accept a deterministic hash or no header at all
+        if txn_hash:
+            from app.x402 import _mark_used
+            _mark_used(txn_hash)
+
+    # Fetch live market result from sentinel state
+    market = sentinel.state().market
+    data = market.model_dump(mode="json")
+
+    # Intent filtering: re-rank vendors by specified categories
+    if intent:
+        intent_cats = [i.strip() for i in intent.split(",") if i.strip()]
+        for vendor in data.get("vendors", []):
+            judgments = vendor.get("judgments", [])
+            claims = vendor.get("claims", [])
+            claim_map = {c["claim_id"]: c for c in claims}
+            filtered = [
+                j for j in judgments
+                if claim_map.get(j["claim_id"], {}).get("claim_type", "") in intent_cats
+            ]
+            if filtered:
+                supported = sum(1 for j in filtered if j["verdict"] == "SUPPORTED")
+                vendor["intent_score"] = supported / len(filtered)
+            else:
+                vendor["intent_score"] = None
+
+    # Emit paid_fetch event so the dashboard "Agents paid" counter ticks
+    sentinel.state().activity_bus.emit(
+        TelemetryEvent(
+            stage="paid_fetch",
+            vendor=None,
+            payload={"category": category, "txn_hash": txn_hash or demo_hash_for(category)},
+        )
+    )
+
+    data["paid"] = True
+    data["txn_hash"] = txn_hash or demo_hash_for(category)
+    data["audit_age_hrs"] = 0  # live data, always fresh from watch loop
+    return JSONResponse(content=data)
+
+
+@app.get("/api/market/{category}/status/{job_id}")
+async def market_status(category: str, job_id: str) -> Any:
+    """Stub for buyer agent polling. Returns 'complete' for the live loop."""
+    return {"status": "complete", "category": category}
+
+
+class InterrogateRequest(BaseModel):
+    message: str
+    history: list[dict] = Field(default_factory=list)
+
+
+@app.post("/interrogate")
+async def interrogate(req: InterrogateRequest) -> EventSourceResponse:
+    """D10 — Thesys C1 'Interrogate the market' SSE endpoint.
+    Streams a generative-UI response grounded in the live MarketResult."""
+    from app.thesys import stream_interrogate
+
+    # Use the freshest available market: sentinel watch-loop state, or the
+    # most recently completed /audit run (whichever has more vendors).
+    market = sentinel.state().market
+    for run_id, task in _TASKS.items():
+        if task and task.done() and not task.exception():
+            try:
+                candidate = task.result()
+                if candidate and len(candidate.vendors) > len(market.vendors):
+                    market = candidate
+                    sentinel.state().market = candidate
+            except Exception:
+                pass
+
+    async def gen():
+        async for chunk in stream_interrogate(req.message, req.history, market):
+            yield {"data": chunk}
+
+    return EventSourceResponse(gen())
 
 
 @app.get("/activity/stream")

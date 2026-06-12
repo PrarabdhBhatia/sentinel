@@ -37,6 +37,7 @@ const STAGE_PRETTY: Record<string, { icon: string; label: (e: ActivityEvent) => 
   sentinel_published: { icon: '↗', label: e => describePublished(e) },
   sentinel_notified: { icon: '✉', label: e => describeNotified(e) },
   sentinel_reaudit_done: { icon: '✓', label: e => describeReaudit(e) },
+  paid_fetch: { icon: '💰', label: e => `agent paid · ${(e.payload as Record<string,string>)?.category ?? 'verdicts'}` },
 }
 
 function shortClaim(id: string): string {

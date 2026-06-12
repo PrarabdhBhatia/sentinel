@@ -407,6 +407,104 @@ function VendorCard({ v, animIn }: { v: VendorResult; animIn: boolean }) {
 
 type Phase = 'idle' | 'running' | 'done'
 
+const NIMBUS_CLAIM_SETS = [
+  [
+    "Nimbus AI resolves 71% of support tickets without human intervention",
+    "Average handle time reduced by 52% after Nimbus deployment",
+    "99.99% uptime SLA with enterprise support",
+  ],
+  [
+    "Nimbus AI now resolves 84% of tickets autonomously — up from 71%",
+    "Customer satisfaction scores increased 38% post-deployment",
+    "Handles 10,000 concurrent conversations with sub-200ms latency",
+  ],
+  [
+    "Industry-leading 91% autonomous resolution rate",
+    "Reduces support costs by $2.4M annually for enterprise clients",
+    "Seamless integration with 200+ tools including Salesforce and Zendesk",
+  ],
+]
+
+function SimulateAgentFetchButton({ apiBase }: { apiBase: string }) {
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+
+  async function fetch402() {
+    setBusy(true)
+    setDone(false)
+    try {
+      await fetch(`${apiBase}/api/market/ai_support_agents/verdicts`)
+      setDone(true)
+      setTimeout(() => setDone(false), 3000)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={fetch402}
+      disabled={busy}
+      className="pill"
+      title="Simulate an AI agent fetching verdicts via the x402 endpoint — ticks Agents paid"
+      style={{
+        height: 34, fontSize: 12,
+        background: done ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.1)',
+        borderColor: done ? 'rgba(34,197,94,0.4)' : 'rgba(99,102,241,0.3)',
+        color: done ? 'rgb(134,239,172)' : 'var(--accent)',
+        opacity: busy ? 0.6 : 1,
+      }}
+    >
+      {busy ? 'Fetching…' : done ? '✓ Agent paid' : '🤖 Simulate agent fetch'}
+    </button>
+  )
+}
+
+function SimulateChangeButton({ apiBase }: { apiBase: string }) {
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const idxRef = useRef(0)
+
+  async function simulate() {
+    setBusy(true)
+    setDone(false)
+    try {
+      const claims = NIMBUS_CLAIM_SETS[idxRef.current % NIMBUS_CLAIM_SETS.length]
+      idxRef.current += 1
+      await fetch(`${apiBase}/test-vendor/nimbus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          headline: `Nimbus AI — Version ${idxRef.current + 1}.0`,
+          claims,
+        }),
+      })
+      setDone(true)
+      setTimeout(() => setDone(false), 3000)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={simulate}
+      disabled={busy}
+      className="pill"
+      title="Simulate a vendor page change on the Nimbus test vendor — triggers autonomous re-audit within 30s"
+      style={{
+        height: 34, fontSize: 12,
+        background: done ? 'rgba(34,197,94,0.15)' : 'rgba(251,191,36,0.1)',
+        borderColor: done ? 'rgba(34,197,94,0.4)' : 'rgba(251,191,36,0.3)',
+        color: done ? 'rgb(134,239,172)' : 'rgb(253,224,71)',
+        opacity: busy ? 0.6 : 1,
+      }}
+    >
+      {busy ? 'Changing…' : done ? '✓ Change live' : '⚡ Simulate vendor change'}
+    </button>
+  )
+}
+
 export default function App() {
   const [customText, setCustomText] = useState('')
   const [customError, setCustomError] = useState('')
@@ -755,6 +853,8 @@ export default function App() {
                 style={{ height: 34, fontSize: 12 }}>
                 {phase === 'running' ? 'Auditing…' : 'Re-audit'}
               </button>
+              <SimulateChangeButton apiBase={API_BASE} />
+              <SimulateAgentFetchButton apiBase={API_BASE} />
               <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
                 {fmtMs(stats.elapsedMs)} · {fmtCost(stats.totalCost)} · {stats.calls} calls
               </span>
@@ -800,6 +900,8 @@ export default function App() {
           )}
         </main>
       </div>
+
+      <InterrogatePanel apiBase={API_BASE} />
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
