@@ -28,11 +28,21 @@ class TelemetryBus:
     """In-process async bus. One bus per audit run. The SSE endpoint creates a
     subscriber via .subscribe() (an asyncio.Queue) and drains it to the client."""
 
-    def __init__(self, run_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        run_id: Optional[str] = None,
+        *,
+        parent_bus: Optional["TelemetryBus"] = None,
+    ) -> None:
         self.run_id = run_id or uuid.uuid4().hex[:12]
         self._subscribers: list[asyncio.Queue[TelemetryEvent]] = []
         self._log_path = LOGS_DIR / f"run_{self.run_id}.jsonl"
         self.partial_result: Optional[object] = None  # set by orchestrator as vendors complete
+        # Optional upstream bus that every emit() also feeds. The Sentinel loop
+        # uses this to mirror per-trigger run events onto a long-lived activity
+        # bus that D07's UI subscribes to. Parent never receives totals — only
+        # event broadcast — so each per-run bus keeps its own clean accounting.
+        self._parent_bus = parent_bus
         # Running totals accumulated on every emit(). The orchestrator snapshots
         # this into MarketResult.telemetry_summary at the end of the sweep so
         # the dashboard has one source of truth and the JSONL log is the
@@ -87,6 +97,18 @@ class TelemetryBus:
             try:
                 q.put_nowait(event)
             except asyncio.QueueFull:
+                pass
+
+        # Mirror to the activity bus, if any. Wrapped so a misbehaving parent
+        # never breaks the per-run bus — telemetry must not stall the pipeline.
+        if self._parent_bus is not None:
+            try:
+                for q in list(self._parent_bus._subscribers):
+                    try:
+                        q.put_nowait(event)
+                    except asyncio.QueueFull:
+                        pass
+            except Exception:
                 pass
 
     def emit_async(self, event: TelemetryEvent) -> asyncio.Task[None]:

@@ -68,7 +68,16 @@ class Settings(BaseSettings):
     CLICKHOUSE_PASSWORD: str = ""
 
     # ── sentinel loop (D03) ──────────────────────────────────────────────────
+    # WATCH_ENABLED=false disables the autonomous watcher (useful for local
+    # dev when you don't want the loop hitting external sites). The demo runs
+    # with this on. WATCH_INTERVAL_S is the tick cadence.
+    WATCH_ENABLED: bool = True
     WATCH_INTERVAL_S: int = 30
+    # Where the live-editable test page lives. Sentinel watches this URL as
+    # the is_test vendor. The demo lever — edit a claim here on stage and
+    # the loop fires within one interval.
+    TEST_VENDOR_NAME: str = "Nimbus Support AI"
+    TEST_VENDOR_URL: str = "http://127.0.0.1:8010/test-vendor/nimbus"
 
     # ── flags ────────────────────────────────────────────────────────────────
     # Magnific honest-ad stage. Magnific is not a sponsor at this hack — OFF.

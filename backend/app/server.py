@@ -1,22 +1,52 @@
-"""FastAPI surface. POST /audit starts a run and returns its run_id. The frontend
-opens GET /audit/{run_id}/stream as Server-Sent Events to receive every
-TelemetryEvent live — the telemetry IS the demo."""
+"""FastAPI surface.
+
+POST /audit                       — start a run, returns its run_id (D00)
+GET  /audit/{run_id}/stream       — per-run SSE telemetry (D00)
+GET  /audit/{run_id}/results      — per-run partial/final MarketResult (D00)
+GET  /healthz                     — liveness
+
+D03 additions (sentinel autonomy layer):
+GET  /test-vendor/nimbus          — fictional editable vendor page (HTML)
+POST /test-vendor/nimbus          — replace claims on the test page (JSON)
+GET  /sentinel/status             — live watcher state (watching/triggers/etc.)
+GET  /activity/stream             — SSE of the global activity bus
+                                    (every sentinel_trigger + per-trigger
+                                    pipeline event, ready for D07's feed)
+"""
 
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 import orjson
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sse_starlette import EventSourceResponse
 
+from app import sentinel, test_vendor
 from app.telemetry import TelemetryBus
 
 
-app = FastAPI(title="Sentinel — Autonomous burden of proof for the agentic web")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Start the sentinel loop on boot, cancel on shutdown. Lazy state init
+    means the watcher's MarketResult and activity bus exist before the first
+    request hits the dashboard."""
+    await sentinel.start()
+    try:
+        yield
+    finally:
+        await sentinel.stop()
+
+
+app = FastAPI(
+    title="Sentinel — Autonomous burden of proof for the agentic web",
+    lifespan=_lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -86,7 +116,6 @@ async def stream(run_id: str) -> EventSourceResponse:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30.0)
                 except asyncio.TimeoutError:
-                    # Send keep-alive comment
                     yield {"event": "ping", "data": ""}
                     continue
                 yield {
@@ -124,3 +153,73 @@ async def results(run_id: str) -> Any:
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# D03 — Sentinel autonomy layer
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@app.get("/test-vendor/nimbus", response_class=HTMLResponse)
+async def test_vendor_nimbus_get() -> HTMLResponse:
+    """Fictional vendor marketing page. Trafilatura extracts the claim list
+    as plain text; the sentinel loop hashes that to detect changes."""
+    return HTMLResponse(content=test_vendor.render_html())
+
+
+class NimbusUpdate(BaseModel):
+    headline: Optional[str] = None
+    tagline: Optional[str] = None
+    claims: Optional[list[str]] = None
+
+
+@app.post("/test-vendor/nimbus")
+async def test_vendor_nimbus_post(payload: NimbusUpdate) -> JSONResponse:
+    """Replace any subset of headline/tagline/claims. On stage this is the
+    one-line curl that triggers the autonomous re-audit within one interval."""
+    s = await test_vendor.update(
+        headline=payload.headline,
+        tagline=payload.tagline,
+        claims=payload.claims,
+    )
+    return JSONResponse(
+        {
+            "headline": s.headline,
+            "tagline": s.tagline,
+            "claims": s.claims,
+            "last_modified_ts": s.last_modified_ts,
+        }
+    )
+
+
+@app.get("/sentinel/status")
+async def sentinel_status() -> dict:
+    return sentinel.status_snapshot()
+
+
+@app.get("/activity/stream")
+async def activity_stream(request: Request) -> EventSourceResponse:
+    """Global activity feed — sentinel_trigger, every per-trigger pipeline
+    stage event (ingest/extract/hunt/judge_*/advise/vendor_done), and
+    sentinel_reaudit_done. D07's UI subscribes here."""
+    bus = sentinel.state().activity_bus
+    queue = bus.subscribe()
+
+    async def gen():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    yield {"event": "ping", "data": ""}
+                    continue
+                yield {
+                    "event": "activity",
+                    "data": orjson.dumps(event.model_dump(mode="json")).decode("utf-8"),
+                }
+        finally:
+            bus.unsubscribe(queue)
+
+    return EventSourceResponse(gen())
