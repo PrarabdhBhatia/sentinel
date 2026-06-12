@@ -68,7 +68,7 @@ class ClickHouseSink:
             username = parsed.username or settings.CLICKHOUSE_USER
             password = parsed.password or settings.CLICKHOUSE_PASSWORD
             database = (parsed.path or "").strip("/") or settings.CLICKHOUSE_DATABASE
-            client = clickhouse_connect.get_client(
+            kwargs = dict(
                 host=host,
                 port=port,
                 username=username,
@@ -76,6 +76,17 @@ class ClickHouseSink:
                 database=database,
                 secure=secure,
             )
+            if secure:
+                # macOS Python ships without a usable system CA bundle, so TLS to
+                # ClickHouse Cloud fails with CERTIFICATE_VERIFY_FAILED. Point the
+                # driver at certifi's bundle (already in the dep tree via httpx).
+                try:
+                    import certifi
+
+                    kwargs["ca_cert"] = certifi.where()
+                except Exception:
+                    pass
+            client = clickhouse_connect.get_client(**kwargs)
             client.command(_CREATE_TABLE_SQL)
             self._client = client
             return client
@@ -130,6 +141,7 @@ class ClickHouseSink:
                 "claim_id",
                 "payload",
             ],
+            settings={"async_insert": 1, "wait_for_async_insert": 0},
         )
 
     async def insert_event(self, run_id: str, event: TelemetryEvent) -> None:

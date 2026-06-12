@@ -341,6 +341,22 @@ async def chat(
             timeout=timeout,
         )
 
+    # Pioneer premium path. Pioneer's OpenAI-compatible gateway serves the
+    # frontier models (incl. PREMIUM_MODEL = claude-sonnet-4-6), so when Pioneer
+    # is configured we route premium through it too — one working gateway for
+    # both tiers. This is also the only working premium path when the direct
+    # ANTHROPIC_API_KEY is unset/invalid.
+    if _use_pioneer():
+        return await _openai_chat(
+            _pioneer_client(),
+            settings.PREMIUM_MODEL,
+            messages,
+            tier="premium",
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+        )
+
     # Direct-Anthropic native fallback. Split out system message; Anthropic
     # takes it separately.
     model = settings.PREMIUM_MODEL

@@ -11,8 +11,8 @@ Status legend: ✅ wired & working · 🟡 key in `.env`, integration partial/pe
 - [x] **Pioneer** — cheap-tier/adaptive inference seam exists; key present, final base URL/model still needed.
 - [ ] **TrueFoundry** — planned gateway routing; not used until gateway env vars are set.
 - [x] **Senso / cited.md** — onboarding/CLI installed and publish seam exists; final publish call pending.
-- [x] **ClickHouse** — optional cloud telemetry sink added; active when `CLICKHOUSE_URL` is set.
-- [x] **Airbyte Cloud** — documented as the no-Docker path for syncing external context into ClickHouse.
+- [x] **ClickHouse** — Cloud connected; live sink writing, backfill script + demo queries shipped (`backend/scripts/`).
+- [~] **Airbyte Cloud** — destination = same ClickHouse Cloud; pick a source and point it there to land external context beside `telemetry`.
 - [x] **Composio** — notification seam exists for claim-change alerts; action selection/auth pending.
 - [x] **Thesys C1 / OpenUI** — Interrogate panel built; uses C1 when model env is set, premium fallback otherwise.
 - [ ] **x402** — not implemented yet; do not claim as working.
@@ -24,7 +24,7 @@ Status legend: ✅ wired & working · 🟡 key in `.env`, integration partial/pe
 | **Pioneer** | Adaptive, OpenAI-compatible inference that improves from live traffic | Cheap tier of the judge cascade; every escalation logged back as corrective feedback | 🟡 API key in `.env`; `PIONEER_BASE_URL` + `PIONEER_MODEL` still needed from rep |
 | **TrueFoundry** | AI Gateway — route/govern/observe all LLM traffic | Both cascade tiers (cheap + premium) routed through one gateway base URL | ⬜ no key yet |
 | **Senso / cited.md** | Publish structured context that agents can cite | Auto-publish each completed market audit as a citeable doc | 🟡 key in `.env`; CLI + onboarding skill installed; publish path pending |
-| **ClickHouse** | Fast analytical warehouse | Telemetry sink alongside JSONL; live demo queries (escalation rate, cost/market) | ⬜ no key yet |
+| **ClickHouse** | Fast analytical warehouse | Telemetry sink alongside JSONL; live demo queries (escalation rate, cost/market) | ✅ connected (Cloud, eastus2); sink live, table auto-created, backfill + demo queries shipped |
 | **Composio** | Agent action / tool execution | Post claim-change alert (Slack / GitHub issue) when the sentinel loop fires | 🟡 key in `.env`; `notify.py` pending wire-up |
 | **Thesys C1 / OpenUI** | Generative UI from a question + data | "Interrogate the market" panel — question in, glass-rendered charts/tables out | ✅ built today; runs on premium fallback until `THESYS_C1_MODEL` is set |
 | **x402** | Pay-per-fetch HTTP 402 rail | Verdict endpoint returns a 402 quote; paying agents get the JSON | ⬜ pending (D05) |
