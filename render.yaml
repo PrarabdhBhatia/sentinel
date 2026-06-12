@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: sentinel-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PREMIUM_MODEL
+        value: claude-sonnet-4-6
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: PIONEER_API_KEY
+        sync: false
+      - key: PIONEER_BASE_URL
+        sync: false
+      - key: PIONEER_MODEL
+        sync: false
+      - key: SENSO_API_KEY
+        sync: false
+      - key: X402_PAY_TO
+        sync: false
+      - key: X402_PRICE_USD
+        value: "0.01"
+      - key: COMPOSIO_API_KEY
+        sync: false
+      - key: CLICKHOUSE_URL
+        sync: false
+      - key: CLICKHOUSE_USER
+        value: default
+      - key: CLICKHOUSE_PASSWORD
+        sync: false
+      - key: CLICKHOUSE_DATABASE
+        value: default
+      - key: WATCH_INTERVAL_S
+        value: "60"
+      - key: WATCH_ENABLED
+        value: "true"
+      - key: HONEST_AD_ENABLED
+        value: "false"
+      - key: TEST_VENDOR_URL
+        sync: false
+
+  - type: web
+    name: sentinel-ui
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: VITE_API_URL
+        value: https://sentinel-api.onrender.com
