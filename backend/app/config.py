@@ -74,9 +74,19 @@ class Settings(BaseSettings):
     X402_PAY_TO: str = ""
     X402_PRICE_USD: float = 0.01
     COMPOSIO_API_KEY: str = ""
+    # Thesys C1 / OpenUI (D10) — "Interrogate the market" generative panel.
+    # C1 is OpenAI-compatible, so we drive it through the AsyncOpenAI SDK.
+    # BASE_URL defaults to Thesys's documented embed endpoint; MODEL is left
+    # blank so that until the rep hands over the exact C1 model id, the panel
+    # routes to the premium chat() tier instead of guessing a wrong id and
+    # breaking on stage. Set THESYS_C1_MODEL to light up literal C1.
     THESYS_C1_API_KEY: str = ""
+    THESYS_C1_BASE_URL: str = "https://api.thesys.dev/v1/embed/"
+    THESYS_C1_MODEL: str = ""
     CLICKHOUSE_URL: str = ""
+    CLICKHOUSE_USER: str = "default"
     CLICKHOUSE_PASSWORD: str = ""
+    CLICKHOUSE_DATABASE: str = "default"
 
     # ── sentinel loop (D03) ──────────────────────────────────────────────────
     # WATCH_ENABLED=false disables the autonomous watcher (useful for local

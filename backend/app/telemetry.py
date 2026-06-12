@@ -80,6 +80,13 @@ class TelemetryBus:
             # dead sweep is not.
             pass
 
+        try:
+            from app.ch_sink import emit_telemetry_event
+
+            emit_telemetry_event(self.run_id, event)
+        except Exception:
+            pass
+
         # Update running totals. Counted even when no subscriber is connected,
         # because the orchestrator reads this snapshot at the end of the sweep.
         t = self.totals

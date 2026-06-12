@@ -12,6 +12,10 @@ GET  /sentinel/status             — live watcher state (watching/triggers/etc.
 GET  /activity/stream             — SSE of the global activity bus
                                     (every sentinel_trigger + per-trigger
                                     pipeline event, ready for D07's feed)
+
+D10 additions (Thesys C1 / OpenUI):
+POST /interrogate                 — question + MarketResult → widget spec the
+                                    "Interrogate the market" panel renders.
 """
 
 from __future__ import annotations
@@ -223,3 +227,35 @@ async def activity_stream(request: Request) -> EventSourceResponse:
             bus.unsubscribe(queue)
 
     return EventSourceResponse(gen())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# D10 — Thesys C1 / OpenUI: "Interrogate the market"
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class InterrogateRequest(BaseModel):
+    question: str
+    market: dict[str, Any] = Field(
+        ...,
+        description="A MarketResult (as returned by /audit/{id}/results) to ground the answer.",
+    )
+
+
+@app.post("/interrogate")
+async def interrogate_market(req: InterrogateRequest) -> JSONResponse:
+    """Question + MarketResult → widget spec. The model is grounded on the
+    supplied audit only; the panel renders the widgets in Sentinel's own glass
+    components, so generated content never defines the design language."""
+    from app.interrogate import interrogate as run_interrogate
+    from app.schemas import MarketResult
+
+    if not req.question.strip():
+        raise HTTPException(status_code=422, detail="question is required")
+    try:
+        market = MarketResult.model_validate(req.market)
+    except Exception as exc:  # noqa: BLE001 — surface a clean 422 to the panel
+        raise HTTPException(status_code=422, detail=f"invalid market payload: {exc}")
+
+    result = await run_interrogate(req.question, market)
+    return JSONResponse(result)

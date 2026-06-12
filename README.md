@@ -80,6 +80,14 @@ into `backend/app/config.py` if the application needs to read them at runtime.
 For tools without a stable public price, the frontend intentionally shows
 `pricing not tracked`.
 
+## Airbyte + ClickHouse Cloud
+
+Docker is not required for Sentinel. Set `CLICKHOUSE_URL`,
+`CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, and `CLICKHOUSE_DATABASE` to stream
+telemetry into ClickHouse Cloud while keeping the JSONL logs as replay backup.
+Use Airbyte Cloud to sync external context into the same warehouse. See
+`docs/airbyte-clickhouse-cloud.md`.
+
 ## Build map
 
 | # | Dispatch | Status |

@@ -3,6 +3,7 @@ import { SentinelLogo } from './components/SentinelLogo'
 import { StatusStrip } from './components/StatusStrip'
 import { ActivityFeed } from './components/ActivityFeed'
 import { GlassCard } from './components/GlassCard'
+import { InterrogatePanel } from './components/InterrogatePanel'
 
 // Backend API base. Empty string keeps the Vite dev proxy working locally
 // (relative /audit hits the Vite proxy → localhost:8000). On Railway the
@@ -771,6 +772,12 @@ export default function App() {
                 <VendorCard key={v.vendor} v={v} animIn={animedIn.has(v.vendor)} />
               ))}
             </div>
+          )}
+
+          {/* D10 — "Interrogate the market" generative panel. Contained glass
+              card, grounded on the current MarketResult, rendered in our theme. */}
+          {marketResult && sorted.length > 0 && (
+            <InterrogatePanel marketData={marketResult} />
           )}
         </main>
       </div>
