@@ -12,11 +12,11 @@ Status legend: ✅ wired & working · 🟡 key in `.env`, integration partial/pe
 - [ ] **TrueFoundry** — planned gateway routing; not used until gateway env vars are set.
 - [x] **Senso / cited.md** — onboarding/CLI installed and publish seam exists; final publish call pending.
 - [x] **ClickHouse** — Cloud connected; live sink writing, backfill script + demo queries shipped (`backend/scripts/`).
-- [~] **Airbyte Cloud** — destination = same ClickHouse Cloud; pick a source and point it there to land external context beside `telemetry`.
+- [~] **Airbyte Cloud** — destination = same ClickHouse Cloud; configuration tested as far as permissions allow, source sync still optional.
 - [x] **Composio** — notification seam exists for claim-change alerts; action selection/auth pending.
 - [x] **Thesys C1 / OpenUI** — Interrogate panel built; uses C1 when model env is set, premium fallback otherwise.
-- [ ] **x402** — not implemented yet; do not claim as working.
-- [x] **Guild.ai** — buyer agent created/published; concept + agent demo path.
+- [x] **x402** — verdict endpoint exists; demo mode returns paid JSON and emits `paid_fetch`, real wallet verification still pending.
+- [x] **Guild.ai** — buyer agent created/published and used to reason over Sentinel verdict data; not embedded in backend/frontend.
 - [ ] **Render** — not deployed yet.
 
 | Sponsor | What it gives us | How Sentinel uses it | Status |
@@ -27,8 +27,9 @@ Status legend: ✅ wired & working · 🟡 key in `.env`, integration partial/pe
 | **ClickHouse** | Fast analytical warehouse | Telemetry sink alongside JSONL; live demo queries (escalation rate, cost/market) | ✅ connected (Cloud, eastus2); sink live, table auto-created, backfill + demo queries shipped |
 | **Composio** | Agent action / tool execution | Post claim-change alert (Slack / GitHub issue) when the sentinel loop fires | 🟡 key in `.env`; `notify.py` pending wire-up |
 | **Thesys C1 / OpenUI** | Generative UI from a question + data | "Interrogate the market" panel — question in, glass-rendered charts/tables out | ✅ built today; runs on premium fallback until `THESYS_C1_MODEL` is set |
-| **x402** | Pay-per-fetch HTTP 402 rail | Verdict endpoint returns a 402 quote; paying agents get the JSON | ⬜ pending (D05) |
-| **Guild.ai** | "Most Innovative Use of Agents" prize | The Sentinel autonomy story itself (concept-level — verify booth requirements) | ⬜ no integration; concept entry |
+| **Airbyte Cloud** | Managed data movement into the warehouse | External context can sync into the same ClickHouse Cloud database as Sentinel telemetry | 🟡 destination configured against ClickHouse; source sync optional for demo |
+| **x402** | Pay-per-fetch HTTP 402 rail | Verdict endpoint returns a quote when wallet is set; demo mode returns paid JSON and emits `paid_fetch` | 🟡 endpoint wired; real wallet/settlement pending |
+| **Guild.ai** | Buyer-agent runtime / "Most Innovative Use of Agents" prize | Published procurement agent reasons over Sentinel verdict data and recommends a vendor | ✅ published v1.0.3; external CLI demo works, not embedded in app runtime |
 | **Render** | Deploy platform | Host the backend + the live-editable test vendor page | ⬜ pending |
 
 ---
@@ -71,6 +72,17 @@ Status legend: ✅ wired & working · 🟡 key in `.env`, integration partial/pe
   so it never blocks the pipeline).
 - **Config:** `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`,
   `CLICKHOUSE_DATABASE`.
+- **Acceptance:** ClickHouse Cloud is connected, `telemetry` is auto-created, and
+  demo query returned live rows grouped by `hunt`, `judge_cheap`, `extract`, and
+  `ingest`.
+
+### Airbyte Cloud — external context into ClickHouse
+- **Role:** no-Docker path for syncing sponsor/external context into the same
+  ClickHouse Cloud warehouse as Sentinel telemetry.
+- **Code/docs:** [docs/airbyte-clickhouse-cloud.md](docs/airbyte-clickhouse-cloud.md)
+  plus ClickHouse destination configured in Airbyte Cloud.
+- **Status:** optional for the live demo. Sentinel does not depend on Airbyte; the
+  clean story is "Airbyte brings external context beside Sentinel's telemetry."
 
 ### Composio — act on the web
 - **Role:** when the sentinel loop detects a claim change, post the delta to Slack
@@ -94,15 +106,22 @@ Status legend: ✅ wired & working · 🟡 key in `.env`, integration partial/pe
 ### x402 — pay-per-fetch
 - **Role:** the verdict API returns HTTP 402 + a quote; a paying agent gets the
   verdict JSON. The "agents pay for trust data" moat + the buyer-agent money moment.
-- **Code:** payments wrapper on `GET /api/market/{category}/verdicts` (D05).
+- **Code:** payments wrapper on `GET /api/market/{category}/verdicts` in
+  [backend/app/server.py](backend/app/server.py), helpers in [backend/app/x402.py](backend/app/x402.py).
 - **Config:** `X402_PAY_TO`, `X402_PRICE_USD`.
+- **Status:** demo mode works when `X402_PAY_TO` is blank: a verdict fetch returns
+  paid JSON and emits `paid_fetch` so the dashboard "Agents paid" counter ticks.
+  Real wallet/settlement verification remains pending.
 
-### Guild.ai — autonomy prize (concept-level)
-- **Role:** biggest prize ($2,800), "Most Innovative Use of Agents." Our entry is
-  the Sentinel autonomy story itself — the no-human watch→re-audit→publish loop plus
-  the buyer agent that pays for verdicts.
-- **Integration:** none required as of plan; **verify at booth** whether a direct
-  technical hook is needed.
+### Guild.ai — buyer agent
+- **Role:** the procurement agent side of the marketplace. Sentinel provides paid
+  verdict data; the Guild agent reasons over substantiation and chooses a vendor.
+- **Code:** [sentinel-buyer-agent/sentinel-buyer-agent/agent.ts](sentinel-buyer-agent/sentinel-buyer-agent/agent.ts).
+- **Status:** published as `emanuel~sentinel-buyer-agent` v1.0.3. CLI demo works
+  by passing Sentinel verdict JSON/summary into the Guild agent; latest run
+  recommended Zendesk AI after comparing SUPPORTED ratios and tie-breakers.
+- **Caveat:** not embedded inside Sentinel backend/frontend yet; the integration is
+  an external Guild buyer-agent demo path.
 
 ### Render — deploy
 - **Role:** host the backend + the live-editable test vendor page so the loop can be
