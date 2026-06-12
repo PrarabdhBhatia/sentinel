@@ -7,6 +7,8 @@ that's Stage B's snippet-only constraint, mentioned here as cross-ref."""
 
 from __future__ import annotations
 
+import re
+
 import httpx
 import trafilatura  # type: ignore[import-untyped]
 
@@ -57,13 +59,42 @@ async def ingest(url: str, *, bus: TelemetryBus, vendor: str | None = None) -> s
             return ""
 
 
+_JINA_NOISE_RE = re.compile(
+    r"(!\[Image\s*\d*\]|imagedelivery\.net|cdn\.|clickagy|tracking|utm_|clkgy|pixel\.gif)",
+    re.IGNORECASE,
+)
+
+
+def _clean_jina_markdown(raw: str) -> str:
+    """Strip Jina Reader output of image-link noise and nav-only lines so the
+    LLM extractor receives clean prose, not markdown soup."""
+    cleaned = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("Title:") or stripped.startswith("URL Source"):
+            continue
+        if _JINA_NOISE_RE.search(stripped):
+            continue
+        # Nav-only lines: pure markdown links with no surrounding text
+        if re.fullmatch(r"\[.*?\]\(https?://[^\)]+\)", stripped):
+            continue
+        # Lines under 20 chars after stripping markdown are just noise
+        text_only = re.sub(r"\[([^\]]*)\]\([^\)]*\)", r"\1", stripped)
+        if len(text_only.strip()) < 20:
+            continue
+        cleaned.append(stripped)
+    return "\n".join(cleaned)
+
+
 async def _jina_fallback(http: httpx.AsyncClient, url: str) -> str:
     """Use Jina Reader as a fallback for JS-heavy or blocked pages."""
     try:
         jina_url = f"https://r.jina.ai/{url}"
         resp = await http.get(jina_url, timeout=settings.SCRAPE_TIMEOUT_S * 2)
         if resp.status_code < 400 and resp.text.strip():
-            return resp.text[:15_000]
+            return _clean_jina_markdown(resp.text)[:15_000]
     except Exception:
         pass
     return ""

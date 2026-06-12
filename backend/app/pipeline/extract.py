@@ -17,25 +17,32 @@ from app.telemetry import TelemetryBus, measure
 
 _SYSTEM = """You are a precise claim extractor for an AI market auditor.
 
-Extract every specific, quantified outcome claim from the vendor marketing text below.
-Only include claims with a concrete number, percentage, ratio, or measurable outcome.
-Skip vague marketing phrases like "industry-leading", "best-in-class", or "enterprise-grade".
+Extract auditable marketing claims from the vendor text below. Include TWO types:
+
+1. QUANTIFIED claims — concrete numbers, percentages, ratios, dollar figures
+   e.g. "Resolves 45% of tickets", "3x faster", "saves $2M", "99.9% uptime"
+
+2. SUPERLATIVE / UNIQUE claims — "only", "first", "highest", "best", "leading", "#1"
+   even without a number — these are checkable competitive assertions
+   e.g. "the only AI built for LTV", "#1 AI agent for SMBs", "highest resolution rate in the industry"
+
+Skip pure fluff: "enterprise-grade", "powerful", "seamless", "robust" with no measurable or unique assertion.
 
 Return ONLY a valid JSON array. No markdown, no explanation, just the JSON.
 Each element must have exactly these keys:
 - "claim": full claim statement (1 sentence)
-- "metric": what is being measured (e.g. "resolution_rate", "cost_reduction", "csat_score")
-- "magnitude": the specific number/ratio (e.g. "45%", "3x", "90%", "$2M")
-- "claim_type": one of "performance", "cost", "accuracy", "speed", "scale", "reliability"
-- "verbatim_span": the exact phrase from the source text (keep it short, ≤15 words)
+- "metric": what is being measured (e.g. "resolution_rate", "cost_reduction", "market_position")
+- "magnitude": the specific value OR qualifier (e.g. "45%", "3x", "#1", "only", "highest")
+- "claim_type": one of "performance", "cost", "accuracy", "speed", "scale", "reliability", "uniqueness"
+- "verbatim_span": the exact phrase from the source text (≤15 words)
 
 Example output:
 [
   {"claim": "Resolves 45% of support tickets automatically", "metric": "resolution_rate", "magnitude": "45%", "claim_type": "performance", "verbatim_span": "resolves 45% of support tickets automatically"},
-  {"claim": "3x faster response time", "metric": "response_time", "magnitude": "3x", "claim_type": "speed", "verbatim_span": "3x faster response time"}
+  {"claim": "The only AI built for customer lifetime value", "metric": "market_position", "magnitude": "only", "claim_type": "uniqueness", "verbatim_span": "the only AI built for LTV"}
 ]
 
-If no quantified claims are found, return [].
+If no auditable claims are found, return [].
 """
 
 

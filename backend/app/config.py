@@ -8,7 +8,9 @@ silently no-ops until its dispatch wires it up."""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -53,6 +55,22 @@ class Settings(BaseSettings):
     # for the real rate once the rep / docs page confirms.
     PIONEER_INPUT_PER_MTOK: float = 0.05
     PIONEER_OUTPUT_PER_MTOK: float = 0.10
+
+    # Strip blank-string .env placeholders from numeric fields before
+    # pydantic validates them, so the class-level defaults apply.
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_empty_numerics(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        _float_fields = {
+            "PIONEER_INPUT_PER_MTOK", "PIONEER_OUTPUT_PER_MTOK",
+            "CHEAP_INPUT_PER_MTOK", "CHEAP_OUTPUT_PER_MTOK",
+            "CHEAP_ATTEMPT_COST_USD", "X402_PRICE_USD",
+            "JUDGE_CONFIDENCE_THRESHOLD", "SCRAPE_TIMEOUT_S",
+            "LLM_TIMEOUT_S", "CHEAP_LLM_TIMEOUT_S",
+        }
+        return {k: v for k, v in data.items() if not (k in _float_fields and v == "")}
 
     # TrueFoundry AI Gateway (D01) — route both tiers through gateway.
     # When TRUEFOUNDRY_BASE_URL + TRUEFOUNDRY_API_KEY are set, clients.py uses
